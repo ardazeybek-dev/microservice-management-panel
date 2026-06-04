@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  postgres_db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: odev_veritabani
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    restart: always
+
+  backend:
+    build: .
+    ports:
+      - "3006:3006"
+    depends_on:
+      - postgres_db
+      - rabbitmq
+    environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=1234
+      - DB_HOST=postgres_db
+      - DB_NAME=odev_veritabani
+      - DB_PORT=5432
+      - GEMINI_API_KEY=kendi_api_keyinizi_buraya_yazin
+    restart: always
+
+  frontend:
+    build: ./odev-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  pgdata:

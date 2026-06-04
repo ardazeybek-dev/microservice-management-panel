@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>👑 Supervisor Yönetim Paneli</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1e272e; color: #d2dae2; text-align: center; padding: 40px; }
+        h1 { color: #0fbcf9; margin-bottom: 5px;}
+        .alt-baslik { color: #808e9b; font-size: 14px; margin-bottom: 30px;}
+        .panel { background-color: #485460; padding: 30px; border-radius: 15px; box-shadow: 0px 10px 20px rgba(0,0,0,0.3); max-width: 800px; margin: 0 auto; }
+        button { padding: 15px 30px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 8px; margin: 10px; transition: 0.3s; }
+        .btn-gonder { background-color: #05c46b; color: white; }
+        .btn-yenile { background-color: #ffa801; color: white; }
+        .btn-ai { background-color: #9b59b6; color: white; }
+        button:hover { transform: scale(1.05); }
+        input[type="file"] { margin: 15px; padding: 10px; background-color: #1e272e; border-radius: 5px; color: white;}
+        
+        #liste-alani { margin-top: 30px; text-align: left; background-color: #1e272e; padding: 20px; border-radius: 10px; height: 400px; overflow-y: auto; color: #0be881; font-family: monospace; font-size: 15px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+
+    <div class="panel">
+        <h1>👑 Supervisor Kontrol Merkezi</h1>
+        <div class="alt-baslik">PostgreSQL (JSON) • RabbitMQ (RPC) • Yapay Zeka Entegrasyonu</div>
+        
+        <button class="btn-gonder" onclick="gorevYolla()">🐇 Öğrenci Grubuna Görev Yolla</button>
+        <button class="btn-yenile" onclick="verileriCek()">🔄 Veritabanını Yenile</button>
+        
+        <hr style="border-color: #808e9b; margin: 25px 0;">
+        
+        <h2 style="color: #9b59b6;">🤖 Yapay Zeka Dosya Analizi</h2>
+        <input type="file" id="dosyaSec" accept=".txt">
+        <br>
+        <button class="btn-ai" onclick="aiAnalizYap()">Dosyayı Yükle ve Analiz Et 🪄</button>
+
+        <div id="liste-alani">
+            <pre id="veri-ekrani">Sistem hazır, komut bekleniyor reis...</pre>
+        </div>
+    </div>
+
+    <script>
+        async function gorevYolla() {
+            document.getElementById('veri-ekrani').innerText = "Tavşana görev iletiliyor, postane çalışıyor... 🐇📬";
+            try {
+                const response = await fetch('http://localhost:3006/rpc-test');
+                const data = await response.json();
+                document.getElementById('veri-ekrani').innerText = "GÖREV BAŞARILI! RPC Cevabı:\n\n" + JSON.stringify(data, null, 4);
+                
+                setTimeout(verileriCek, 2000); 
+            } catch (error) { document.getElementById('veri-ekrani').innerText = "Backend bağlantı hatası!"; }
+        }
+
+        async function verileriCek() {
+            try {
+                const response = await fetch('http://localhost:3006/listele');
+                const data = await response.json();
+                document.getElementById('veri-ekrani').innerText = "GÜNCEL VERİTABANI KAYITLARI:\n\n" + JSON.stringify(data, null, 4);
+            } catch (error) { document.getElementById('veri-ekrani').innerText = "Veri çekilemedi!"; }
+        }
+
+        async function aiAnalizYap() {
+            const dosyaInput = document.getElementById('dosyaSec');
+            if (dosyaInput.files.length === 0) {
+                alert("Önce bir txt dosyası seçmelisin reis!");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("belge", dosyaInput.files[0]);
+
+            document.getElementById('veri-ekrani').innerText = "Yapay Zeka dosyayı okuyor, az bekle... ⏳";
+
+            try {
+                const response = await fetch('http://localhost:3006/ai-analiz', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                document.getElementById('veri-ekrani').innerText = "YAPAY ZEKA SONUCU:\n\n" + JSON.stringify(data, null, 4);
+            } catch (error) {
+                document.getElementById('veri-ekrani').innerText = "AI sunucusuna ulaşılamadı!";
+            }
+        }
+
+        window.onload = verileriCek;
+    </script>
+</body>
+</html>

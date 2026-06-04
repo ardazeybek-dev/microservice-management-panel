@@ -1,0 +1,22 @@
+PROJE KURULUM VE ÇALIŞTIRMA ADIMLARI
+--------------------------------------------------
+
+Sistemimiz Docker altyapısı ile tamamen mikroservis mimarisine uygun olarak paketlenmiştir. Ayrı ayrı servisleri kurmanıza gerek yoktur, tek bir komut tüm mimariyi ayağa kaldıracaktır.
+
+Çalıştırma Adımı:
+Komut satırında projenin ana dizinine (docker-compose.yml dosyasının olduğu yere) gelin ve şu komutu çalıştırın:
+
+docker-compose up --build
+
+Bu komut sırasıyla şunları yapacaktır:
+1. PostgreSQL imajını indirip, veritabanını oluşturur ve 5432 portunda yayına alır.
+2. RabbitMQ imajını indirip mesaj kuyruğunu 5672 portunda yayına alır.
+3. Backend (Node.js) servisimizin Dockerfile dosyasını okuyup imajını oluşturur ve 3006 portunda ayağa kaldırır.
+4. Frontend (Next.js) servisimizin Dockerfile dosyasını okuyup imajını oluşturur ve 3000 portunda yayına alır.
+
+Projenin URL Adresi ve Test İşlemleri:
+- Kullanıcı Arayüzü (Frontend): http://localhost:3000
+- Backend API ve Yapay Zeka Servisi: http://localhost:3006
+- RabbitMQ Yönetim Paneli: http://localhost:15672
+
+Sistemi test etmek için http://localhost:3000 adresine giderek Supervisor ekranından rolleri atayabilir, ardından Öğrenci/Okul/İşletme panellerinden veritabanı CRUD işlemlerini, RabbitMQ görevlerini ve Yapay Zeka dosya analizini test edebilirsiniz.
