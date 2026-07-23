@@ -4,7 +4,7 @@ Bu dosya, bu depoda çalışırken Claude Code'a (claude.ai/code) rehberlik eder
 
 ## Proje
 
-Full-stack microservice ödevi: rol tabanlı dinamik yetkilendirme, RabbitMQ RPC, PostgreSQL loglama
+Full-stack microservice projesi: rol tabanlı dinamik yetkilendirme, RabbitMQ RPC, PostgreSQL loglama
 (JSONB + trigger/procedure) ve Gemini AI ile dosya analizi.
 
 ## Yapı

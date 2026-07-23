@@ -74,6 +74,6 @@ git'e gönderilmez. Örnek değerler için `.env.example` ve `odev-frontend/.env
 - Şema/trigger/procedure `db-kurulum.js` ile oluşturulur (`npm run setup-db`).
 - Örnek veri yedeği: `veritabani_yedek.sql`.
 
-## 👥 Hazırlayanlar
+## 👥 Katkıda Bulunanlar
 
 Bkz. `HAZIRLAYANLAR.md`.

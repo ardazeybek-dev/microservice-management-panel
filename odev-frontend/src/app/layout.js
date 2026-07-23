@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Yönetim Paneli — Microservice Ödevi",
+  title: "Yönetim Paneli — Microservice Projesi",
   description: "Yetkilendirme, RabbitMQ RPC ve Gemini AI destekli yönetim paneli",
 };
 
