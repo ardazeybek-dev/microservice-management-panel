@@ -1,24 +1,24 @@
 require('dotenv').config();
 
-async function modelleriGetir() {
+async function listModels() {
     try {
-        console.log("🔍 API Anahtarına tanımlı modeller aranıyor...");
-        
+        console.log("🔍 Searching for models available to your API key...");
+
         const apiKey = process.env.GEMINI_API_KEY;
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
         const data = await response.json();
-        
-        if(data.models) {
-             console.log("✅ SENİN ANAHTARININ KULLANABİLECEĞİ MODELLER ŞUNLAR REİS:");
-             data.models.forEach(m => {
-                 console.log("👉 " + m.name.replace('models/', ''));
-             });
+
+        if (data.models) {
+            console.log("✅ THE MODELS YOUR API KEY CAN USE:");
+            data.models.forEach(m => {
+                console.log("👉 " + m.name.replace('models/', ''));
+            });
         } else {
-             console.log("❌ HATA! Google'dan gelen cevap:", data);
+            console.log("❌ ERROR! Response from Google:", data);
         }
     } catch (error) {
-        console.error("❌ SİSTEM HATASI:", error.message);
+        console.error("❌ SYSTEM ERROR:", error.message);
     }
 }
 
-modelleriGetir();
+listModels();

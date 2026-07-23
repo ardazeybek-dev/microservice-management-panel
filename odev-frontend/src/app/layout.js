@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Yönetim Paneli — Microservice Projesi",
-  description: "Yetkilendirme, RabbitMQ RPC ve Gemini AI destekli yönetim paneli",
+  title: "Management Panel — Microservice Project",
+  description: "Authorization, RabbitMQ RPC and Gemini AI powered management panel",
 };
 
 export default function RootLayout({ children }) {

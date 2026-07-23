@@ -33,107 +33,107 @@ const pool = new Pool({
 });
 
 pool.connect()
-    .then(() => console.log('PostgreSQL Veritabanına Başarıyla Bağlandık! 🐘'))
-    .catch(err => console.error('Bağlantı Hatası:', err));
+    .then(() => console.log('Connected to PostgreSQL successfully! 🐘'))
+    .catch(err => console.error('Connection error:', err));
 
 let channel;
 async function connectRabbitMQ() {
     try {
         const connection = await amqp.connect(RABBITMQ_URL);
         channel = await connection.createChannel();
-        await channel.assertQueue('gorev_kuyrugu');
-        console.log('RabbitMQ Postanesine Başarıyla Bağlandık! 🐇📬');
+        await channel.assertQueue('task_queue');
+        console.log('Connected to RabbitMQ successfully! 🐇📬');
 
-        channel.consume('gorev_kuyrugu', async (msg) => {
+        channel.consume('task_queue', async (msg) => {
             if (msg !== null) {
-                const gelenVeri = JSON.parse(msg.content.toString());
+                const incomingData = JSON.parse(msg.content.toString());
                 try {
-                    await pool.query('INSERT INTO genel_veriler (veri) VALUES ($1)', [gelenVeri]);
+                    await pool.query('INSERT INTO genel_veriler (veri) VALUES ($1)', [incomingData]);
                     if (msg.properties.replyTo) {
                         channel.sendToQueue(
                             msg.properties.replyTo,
-                            Buffer.from(JSON.stringify({ sonuc: "İŞLENDİ VE VERİTABANINA LOGLANDI ✅" })),
+                            Buffer.from(JSON.stringify({ result: "PROCESSED AND LOGGED TO DATABASE ✅" })),
                             { correlationId: msg.properties.correlationId }
                         );
                     }
-                } catch (err) { console.error("Kuyruk İşleme Hatası:", err); }
+                } catch (err) { console.error("Queue processing error:", err); }
                 channel.ack(msg);
             }
         });
-    } catch (error) { console.error('RabbitMQ Hatası:', error); }
+    } catch (error) { console.error('RabbitMQ error:', error); }
 }
 connectRabbitMQ();
 
-app.post('/ai-analiz', upload.single('belge'), async (req, res) => {
+app.post('/ai-analyze', upload.single('document'), async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ hata: "Lütfen bir txt dosyası seçin!" });
-        const icerik = fs.readFileSync(req.file.path, 'utf-8');
+        if (!req.file) return res.status(400).json({ error: "Please select a .txt file!" });
+        const content = fs.readFileSync(req.file.path, 'utf-8');
 
         try {
             const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            
-            const modeller = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-pro"];
-            let model;
-            let calisanModelAdi = "";
 
-            for (let m of modeller) {
+            const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-pro"];
+            let model;
+            let activeModelName = "";
+
+            for (let m of models) {
                 try {
                     model = genAI.getGenerativeModel({ model: m });
-                    calisanModelAdi = m;
+                    activeModelName = m;
                     break;
                 } catch (e) { continue; }
             }
 
             if (!model) {
-                return res.json({ 
-                    mesaj: "⚠️ Model Bulunamadı!", 
-                    yapayZekaAnalizi: "Sistem güncel bir model bulamadı reis. Kütüphane güncellemesi şart."
+                return res.json({
+                    message: "⚠️ Model not found!",
+                    aiAnalysis: "The system could not find an up-to-date model. A library update is required."
                 });
             }
 
-            const result = await model.generateContent(["Şu metni kısaca özetle:\n", icerik]);
-            
-            res.json({ 
-                mesaj: `AI Analizi Başarılı! 🤖 (Kullanılan Model: ${calisanModelAdi})`, 
-                yapayZekaAnalizi: result.response.text() 
-            });
-        } catch (aiHata) {
+            const result = await model.generateContent(["Summarize the following text briefly:\n", content]);
+
             res.json({
-                mesaj: "⚠️ Yapay Zeka API Hatası",
-                yapayZekaAnalizi: "Detay: " + aiHata.message
+                message: `AI analysis successful! 🤖 (Model used: ${activeModelName})`,
+                aiAnalysis: result.response.text()
+            });
+        } catch (aiError) {
+            res.json({
+                message: "⚠️ AI API error",
+                aiAnalysis: "Details: " + aiError.message
             });
         }
     } catch (err) {
-        res.status(500).json({ hata: "Sunucu tarafında bir hata oluştu." });
+        res.status(500).json({ error: "A server-side error occurred." });
     }
 });
 
-app.get('/listele', async (req, res) => {
+app.get('/records', async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM genel_veriler ORDER BY id DESC');
         res.json(result.rows);
-    } catch (err) { res.status(500).json({ hata: err.message }); }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/rpc-test', async (req, res) => {
     try {
         const q = await channel.assertQueue('', { exclusive: true });
         const correlationId = crypto.randomUUID();
-        const mesaj = { islem: "Supervisor Görevi", detay: "Öğrenci paneline yeni yetki atandı." };
+        const message = { operation: "Supervisor Task", detail: "A new permission was assigned to the student panel." };
 
-        channel.sendToQueue('gorev_kuyrugu', Buffer.from(JSON.stringify(mesaj)), {
+        channel.sendToQueue('task_queue', Buffer.from(JSON.stringify(message)), {
             correlationId: correlationId,
             replyTo: q.queue
         });
 
         channel.consume(q.queue, (msg) => {
             if (msg !== null && msg.properties.correlationId === correlationId) {
-                const cevap = JSON.parse(msg.content.toString());
-                res.json({ durum: "Mükemmel", tavsandanGelenCevap: cevap.sonuc });
-                setTimeout(() => channel.deleteQueue(q.queue), 500); 
+                const reply = JSON.parse(msg.content.toString());
+                res.json({ status: "Perfect", response: reply.result });
+                setTimeout(() => channel.deleteQueue(q.queue), 500);
             }
         }, { noAck: true });
-    } catch (err) { res.status(500).json({ hata: "RPC Hatası oluştu" }); }
+    } catch (err) { res.status(500).json({ error: "An RPC error occurred" }); }
 });
 
-app.listen(port, () => console.log(`Backend http://localhost:${port} adresinde fırtına gibi hazır! 🚀`));
+app.listen(port, () => console.log(`Backend is ready at http://localhost:${port}! 🚀`));

@@ -9,9 +9,9 @@ const pool = new Pool({
     port: process.env.DB_PORT,
 });
 
-async function veritabaniAyarla() {
+async function setupDatabase() {
     try {
-        console.log("⏳ Veritabanı masaya yatırılıyor, ameliyat başlıyor...");
+        console.log("⏳ Setting up the database...");
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS genel_veriler (
@@ -20,7 +20,7 @@ async function veritabaniAyarla() {
                 veri JSONB NOT NULL
             );
         `);
-        console.log("✅ 'genel_veriler' tablosu hazır (JSONB destekli).");
+        console.log("✅ 'genel_veriler' table ready (JSONB supported).");
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS sistem_loglari (
@@ -30,19 +30,19 @@ async function veritabaniAyarla() {
                 islem_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        console.log("✅ 'sistem_loglari' tablosu hazır.");
+        console.log("✅ 'sistem_loglari' table ready.");
 
         await pool.query(`
             CREATE OR REPLACE FUNCTION log_kaydi_tut()
             RETURNS TRIGGER AS $$
             BEGIN
                 INSERT INTO sistem_loglari (islem_tipi, aciklama)
-                VALUES ('YENİ_KAYIT', 'Sisteme yeni bir JSON verisi eklendi. ID: ' || NEW.id);
+                VALUES ('NEW_RECORD', 'A new JSON record was added to the system. ID: ' || NEW.id);
                 RETURN NEW;
             END;
             $$ LANGUAGE plpgsql;
         `);
-        console.log("✅ PostgreSQL Fonksiyonu (Procedure) başarıyla yazıldı.");
+        console.log("✅ PostgreSQL function (procedure) written successfully.");
 
         await pool.query(`DROP TRIGGER IF EXISTS veri_eklendiginde ON genel_veriler;`);
         await pool.query(`
@@ -51,15 +51,15 @@ async function veritabaniAyarla() {
             FOR EACH ROW
             EXECUTE FUNCTION log_kaydi_tut();
         `);
-        console.log("✅ PostgreSQL Trigger (Tetikleyici) aktifleştirildi.");
+        console.log("✅ PostgreSQL trigger activated.");
 
-        console.log("🎉 BÜTÜN VERİTABANI İŞLEMLERİ (MADDE 10, 11, 12) KUSURSUZ TAMAMLANDI! 🐘");
+        console.log("🎉 ALL DATABASE OPERATIONS COMPLETED SUCCESSFULLY! 🐘");
         process.exit(0);
 
     } catch (err) {
-        console.error("❌ Veritabanı Kurulum Hatası:", err);
+        console.error("❌ Database setup error:", err);
         process.exit(1);
     }
 }
 
-veritabaniAyarla();
+setupDatabase();
