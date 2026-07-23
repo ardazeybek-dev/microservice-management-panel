@@ -10,7 +10,8 @@ const crypto = require('crypto');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
-const port = 3006;
+const port = process.env.PORT || 3006;
+const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost';
 
 app.use(cors());
 app.use(express.json());
@@ -38,7 +39,7 @@ pool.connect()
 let channel;
 async function connectRabbitMQ() {
     try {
-        const connection = await amqp.connect('amqp://localhost');
+        const connection = await amqp.connect(RABBITMQ_URL);
         channel = await connection.createChannel();
         await channel.assertQueue('gorev_kuyrugu');
         console.log('RabbitMQ Postanesine Başarıyla Bağlandık! 🐇📬');

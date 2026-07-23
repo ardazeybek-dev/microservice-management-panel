@@ -1,12 +1,20 @@
 {
   "name": "odev_backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Yetkilendirme, RabbitMQ RPC ve Gemini AI destekli dosya analizi içeren microservice backend",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "setup-db": "node db-kurulum.js",
+    "ai-test": "node ai-test.js"
   },
-  "keywords": [],
+  "keywords": [
+    "express",
+    "postgresql",
+    "rabbitmq",
+    "gemini",
+    "microservice"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",

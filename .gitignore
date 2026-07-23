@@ -1,2 +1,6 @@
 node_modules/
 .env
+
+# Kullanıcı yüklemeleri (klasör kalsın, içindekiler commit'lenmesin)
+uploads/*
+!uploads/.gitkeep

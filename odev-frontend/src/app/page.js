@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3006";
+
 export default function Home() {
   const [aktifRol, setAktifRol] = useState("Supervisor");
   const [veriler, setVeriler] = useState([]);
@@ -22,7 +24,7 @@ export default function Home() {
 
   const verileriGetir = async () => {
     try {
-      const res = await fetch("http://localhost:3006/listele");
+      const res = await fetch(`${API_URL}/listele`);
       const data = await res.json();
       setVeriler(data);
     } catch (error) {
@@ -38,7 +40,7 @@ export default function Home() {
     formData.append("belge", dosya);
 
     try {
-      const res = await fetch("http://localhost:3006/ai-analiz", {
+      const res = await fetch(`${API_URL}/ai-analiz`, {
         method: "POST",
         body: formData,
       });
@@ -51,7 +53,7 @@ export default function Home() {
 
   const gorevYolla = async () => {
     try {
-      const res = await fetch("http://localhost:3006/rpc-test");
+      const res = await fetch(`${API_URL}/rpc-test`);
       const data = await res.json();
       alert("Tavşan Görevi Tamamladı!\nCevap: " + data.tavsandanGelenCevap);
       verileriGetir(); 
