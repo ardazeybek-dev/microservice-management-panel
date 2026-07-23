@@ -1,79 +1,79 @@
-# 🚀 Yapay Zeka Entegreli Microservice Yönetim Paneli
+# 🚀 AI-Integrated Microservice Management Panel
 
-Öğrenci, Okul ve İşletme rolleri için dinamik yetkilendirme; RabbitMQ ile asenkron iletişim/RPC;
-PostgreSQL (JSONB + trigger/procedure) ile loglama ve Gemini AI ile dosya analizi içeren full-stack
-bir yönetim sistemi.
+A full-stack management system featuring role-based dynamic authorization for Student, School and
+Company roles; asynchronous communication and RPC via RabbitMQ; logging with PostgreSQL (JSONB +
+triggers/procedures); and file analysis powered by Google Gemini AI.
 
-## 🛠 Teknolojiler
+## 🛠 Tech Stack
 
-| Katman         | Teknoloji                              |
+| Layer          | Technology                             |
 |----------------|----------------------------------------|
 | Frontend       | Next.js (React + TailwindCSS)          |
 | Backend        | Node.js + Express                      |
-| Veritabanı     | PostgreSQL (JSONB, trigger, procedure) |
-| Message Broker | RabbitMQ (asenkron + RPC)              |
-| Yapay Zeka     | Google Gemini (dosya analizi)          |
-| Konteyner      | Docker & Docker Compose                |
+| Database       | PostgreSQL (JSONB, triggers, procedures) |
+| Message Broker | RabbitMQ (async + RPC)                 |
+| AI             | Google Gemini (file analysis)          |
+| Containers     | Docker & Docker Compose                |
 
-## 🌟 Özellikler
+## 🌟 Features
 
-- **Dinamik Yetkilendirme:** Supervisor paneli üzerinden her rolün liste görme / CRUD / dosya-AI yetkileri açılıp kapatılır.
-- **RabbitMQ + RPC:** İşlemlerin sonucu (başarılı/başarısız) anlık olarak abonelere bildirilir.
-- **PostgreSQL:** JSONB alanlar, otomatik loglama için trigger ve stored procedure.
-- **Gemini AI:** Yüklenen `.txt` dosyası yapay zekâ ile özetlenir/analiz edilir.
+- **Dynamic authorization:** From the Supervisor panel, each role's list-view / CRUD / file-AI permissions can be toggled on and off.
+- **RabbitMQ + RPC:** Operation results (success/failure) are pushed to subscribers in real time.
+- **PostgreSQL:** JSONB fields, plus a trigger and stored procedure for automatic logging.
+- **Gemini AI:** An uploaded `.txt` file is summarized/analyzed by AI.
 
-## ⚙️ Kurulum
+## ⚙️ Setup
 
-### Seçenek A — Docker (önerilen)
+### Option A — Docker (recommended)
 
-1. Docker ve Docker Compose kurulu olmalı.
-2. Gemini anahtarınızı ortama verin (opsiyonel, AI özelliği için):
+1. Docker and Docker Compose must be installed.
+2. Provide your Gemini key to the environment (optional, for the AI feature):
    ```bash
    export GEMINI_API_KEY=your_key   # Windows PowerShell: $env:GEMINI_API_KEY="your_key"
    ```
-3. Tüm servisleri başlatın:
+3. Start all services:
    ```bash
    docker-compose up --build
    ```
-4. Servisler:
+4. Services:
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:3006
-   - RabbitMQ paneli: http://localhost:15672 (kullanıcı/şifre: `guest` / `guest`)
+   - RabbitMQ panel: http://localhost:15672 (user/password: `guest` / `guest`)
 
-### Seçenek B — Yerel geliştirme
+### Option B — Local development
 
 **Backend:**
 ```bash
-# .env dosyasını hazırlayın
+# Prepare the .env file
 cp .env.example .env        # Windows: copy .env.example .env
-# .env içine DB bilgilerinizi ve GEMINI_API_KEY'i girin
+# Fill in your DB details and GEMINI_API_KEY in .env
 
 npm install
-npm run setup-db            # tabloları, trigger ve procedure'ü oluşturur
-npm start                   # backend http://localhost:3006
+npm run setup-db            # creates tables, trigger and procedure
+npm start                   # backend at http://localhost:3006
 ```
 
 **Frontend:**
 ```bash
 cd odev-frontend
-cp .env.example .env.local  # gerekiyorsa NEXT_PUBLIC_API_URL'i ayarlayın
+cp .env.example .env.local  # set NEXT_PUBLIC_API_URL if needed
 npm install
 npm run dev                 # http://localhost:3000
 ```
 
-> PostgreSQL ve RabbitMQ'yu yerelde ayrıca çalıştırmanız gerekir (ya da sadece bu ikisini Docker'dan alın:
-> `docker-compose up -d postgres_db rabbitmq`).
+> You need to run PostgreSQL and RabbitMQ separately for local development (or just start those two
+> from Docker: `docker-compose up -d postgres_db rabbitmq`).
 
-## 🔐 Güvenlik / Ortam Değişkenleri
+## 🔐 Security / Environment Variables
 
-Sırlar (`GEMINI_API_KEY`, DB şifresi) artık koda gömülü değildir; `.env` dosyasından okunur ve `.env`
-git'e gönderilmez. Örnek değerler için `.env.example` ve `odev-frontend/.env.example` dosyalarına bakın.
+Secrets (`GEMINI_API_KEY`, DB password) are no longer hard-coded; they are read from `.env`, which is
+not committed to git. See `.env.example` and `odev-frontend/.env.example` for sample values.
 
-## 🗄️ Veritabanı
+## 🗄️ Database
 
-- Şema/trigger/procedure `db-kurulum.js` ile oluşturulur (`npm run setup-db`).
-- Örnek veri yedeği: `veritabani_yedek.sql`.
+- The schema/trigger/procedure are created by `db-kurulum.js` (`npm run setup-db`).
+- Sample data backup: `veritabani_yedek.sql`.
 
-## 👥 Katkıda Bulunanlar
+## 👥 Contributors
 
-Bkz. `HAZIRLAYANLAR.md`.
+See `CONTRIBUTORS.md`.

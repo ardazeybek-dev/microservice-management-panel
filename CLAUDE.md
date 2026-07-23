@@ -1,31 +1,36 @@
 # CLAUDE.md
 
-Bu dosya, bu depoda çalışırken Claude Code'a (claude.ai/code) rehberlik eder.
+This file guides Claude Code (claude.ai/code) when working in this repository.
 
-## Proje
+## Project
 
-Full-stack microservice projesi: rol tabanlı dinamik yetkilendirme, RabbitMQ RPC, PostgreSQL loglama
-(JSONB + trigger/procedure) ve Gemini AI ile dosya analizi.
+Full-stack microservice project: role-based dynamic authorization, RabbitMQ RPC, PostgreSQL logging
+(JSONB + trigger/procedure), and file analysis with Gemini AI.
 
-## Yapı
+## Structure
 
-- **index.js** — Express backend (port 3006). Endpoint'ler: `POST /ai-analiz` (dosya + Gemini),
-  `GET /listele` (PostgreSQL kayıtları), `GET /rpc-test` (RabbitMQ RPC).
-- **db-kurulum.js** — tabloları, trigger ve stored procedure'ü oluşturur (`npm run setup-db`).
-- **ai-test.js** — Gemini anahtarına açık modelleri listeler (`npm run ai-test`).
-- **odev-frontend/** — Next.js arayüzü; `src/app/page.js` Supervisor paneli ve rol ekranları.
-- **docker-compose.yml** — postgres_db, rabbitmq, backend, frontend servisleri.
+- **index.js** — Express backend (port 3006). Endpoints: `POST /ai-analiz` (file + Gemini),
+  `GET /listele` (PostgreSQL records), `GET /rpc-test` (RabbitMQ RPC).
+- **db-kurulum.js** — creates tables, trigger and stored procedure (`npm run setup-db`).
+- **ai-test.js** — lists the models available to your Gemini key (`npm run ai-test`).
+- **odev-frontend/** — Next.js UI; `src/app/page.js` holds the Supervisor panel and role screens.
+- **docker-compose.yml** — postgres_db, rabbitmq, backend, frontend services.
 
-## Çalıştırma
+## Running
 
 - Docker: `docker-compose up --build`
-- Yerel backend: `npm install && npm run setup-db && npm start`
-- Yerel frontend: `cd odev-frontend && npm install && npm run dev`
+- Local backend: `npm install && npm run setup-db && npm start`
+- Local frontend: `cd odev-frontend && npm install && npm run dev`
 
-## Kurallar
+## Rules
 
-- **Sırlar koda gömülmez.** DB bilgileri, `GEMINI_API_KEY`, `RABBITMQ_URL` hep `.env`'den okunur.
-  Yeni değişken eklerken `.env.example` dosyasını da güncelle.
-- Frontend backend adresini `process.env.NEXT_PUBLIC_API_URL` üzerinden alır; sabit URL yazma.
-- Backend RabbitMQ'ya `RABBITMQ_URL` ile bağlanır (Docker'da `amqp://rabbitmq`, yerelde `amqp://localhost`).
-- `uploads/` içindeki kullanıcı dosyaları commit'lenmez (bkz. `.gitignore`).
+- **No secrets in code.** DB credentials, `GEMINI_API_KEY`, and `RABBITMQ_URL` are always read from `.env`.
+  When adding a new variable, also update `.env.example`.
+- The frontend gets the backend address from `process.env.NEXT_PUBLIC_API_URL`; never hard-code the URL.
+- The backend connects to RabbitMQ via `RABBITMQ_URL` (`amqp://rabbitmq` in Docker, `amqp://localhost` locally).
+- User files under `uploads/` are not committed (see `.gitignore`).
+
+## Note on endpoint/identifier names
+
+Endpoint paths and some identifiers are in Turkish (`/listele`, `/ai-analiz`, `genel_veriler`), matching
+the frontend calls in `odev-frontend/src/app/page.js`. Keep them consistent across backend and frontend.
