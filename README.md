@@ -17,6 +17,11 @@ by Google Gemini, and a Next.js panel with Student / School / Company role scree
 
 ## 🌟 Features
 
+- **Authentication & dynamic RBAC:** JWT + bcrypt login, with permissions stored in
+  `role_permissions` rather than hard-coded. Every guarded route resolves the caller's permissions
+  from the database on each request, so a Supervisor granting or revoking a permission through
+  `PUT /admin/permissions/:roleId` takes effect on the very next call — the user does not need to log
+  in again.
 - **RabbitMQ + RPC:** `GET /rpc-test` publishes a message to `task_queue` with a `replyTo` queue and a
   `correlationId`, then waits for the consumer's reply — a full request/reply round trip.
 - **PostgreSQL:** Records are stored in a `JSONB` column; an `AFTER INSERT` trigger calls a `plpgsql`
@@ -35,17 +40,58 @@ Being explicit so nobody is misled:
 | PostgreSQL JSONB + trigger + procedure | ✅ Implemented (`db-kurulum.js`) |
 | Gemini document analysis | ✅ Implemented — `.txt` only |
 | Docker Compose orchestration | ✅ Implemented |
-| Role-based access control | ⚠️ **UI prototype only.** The Supervisor panel toggles permissions in React state; there is no authentication and the backend does not enforce roles yet. |
+| Authentication (JWT + bcrypt) | ✅ Implemented |
+| Server-enforced dynamic RBAC | ✅ Implemented — permissions live in the database and are checked per request |
+| Frontend wired to real auth | ⚠️ Not yet — the Next.js panel still toggles permissions in local React state |
 | Automated tests / CI | ❌ Not yet |
 | Redis caching | ❌ Not yet |
 | RAG / embeddings | ❌ Not yet |
 
+## 📡 API
+
+All routes except `/health`, `/auth/register` and `/auth/login` require an
+`Authorization: Bearer <token>` header. Permission codes are enforced server-side.
+
+| Method | Route | Required permission |
+|---|---|---|
+| `GET` | `/health` | — |
+| `POST` | `/auth/register` | — |
+| `POST` | `/auth/login` | — |
+| `GET` | `/auth/me` | authenticated |
+| `GET` | `/records` | `records:read` |
+| `POST` | `/records` | `records:write` |
+| `POST` | `/ai-analyze` | `ai:analyze` |
+| `GET` | `/rpc-test` | `rpc:execute` |
+| `GET` | `/admin/permissions` | `permissions:manage` |
+| `PUT` | `/admin/permissions/:roleId` | `permissions:manage` |
+| `GET` | `/admin/users` | `users:read` |
+
+Default roles: **Supervisor** (all permissions), **School** (read/write/analyze),
+**Company** (read/analyze/rpc), **Student** (read/analyze).
+
+## 📁 Project structure
+
+```
+index.js                    entry point — connects services, starts the server
+src/
+  app.js                    builds the Express app (exported so tests can drive it)
+  config/db.js              PostgreSQL pool
+  config/rabbitmq.js        broker connection + task_queue consumer
+  middleware/auth.js        authenticate() and requirePermission()
+  middleware/errorHandler.js
+  routes/                   auth · records · ai · rpc · admin
+  services/permission.service.js
+db/schema.sql               full schema, idempotent
+scripts/setup-db.js         applies the schema, seeds the first Supervisor
+frontend/                   Next.js panel
+```
+
 ## 🗺️ Roadmap
 
-1. Real authentication and server-enforced RBAC (JWT + bcrypt, users/roles tables, route middleware)
-2. Redis caching layer in front of `GET /records`
-3. Jest + Supertest integration tests and a GitHub Actions CI pipeline
-4. Rename the remaining Turkish SQL identifiers alongside the auth migration
+1. ~~Real authentication and server-enforced RBAC~~ ✅ done
+2. Wire the Next.js panel to the real auth API (login screen, token storage, live permission matrix)
+3. Redis caching layer in front of the per-request permission lookup
+4. Jest + Supertest integration tests and a GitHub Actions CI pipeline
 5. Retrieval-augmented document analysis (embeddings + pgvector) replacing the single-shot summary
 
 ## ⚙️ Setup
@@ -72,10 +118,13 @@ Being explicit so nobody is misled:
 ```bash
 # Prepare the .env file
 cp .env.example .env        # Windows: copy .env.example .env
-# Fill in your DB details and GEMINI_API_KEY in .env
+# Fill in .env: DB details, GEMINI_API_KEY, and a JWT_SECRET.
+# The server refuses to start without JWT_SECRET. Generate one with:
+#   node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+# Set SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD to create the first Supervisor.
 
 npm install
-npm run setup-db            # creates tables, trigger and procedure
+npm run setup-db            # applies db/schema.sql, seeds the first Supervisor
 npm start                   # backend at http://localhost:3006
 ```
 
