@@ -9,18 +9,19 @@ Full-stack microservice project: role-based dynamic authorization, RabbitMQ RPC,
 
 ## Structure
 
-- **index.js** — Express backend (port 3006). Endpoints: `POST /ai-analiz` (file + Gemini),
-  `GET /listele` (PostgreSQL records), `GET /rpc-test` (RabbitMQ RPC).
+- **index.js** — Express backend (port 3006). Endpoints: `POST /ai-analyze` (file + Gemini),
+  `GET /records` (PostgreSQL records), `GET /rpc-test` (RabbitMQ RPC).
 - **db-kurulum.js** — creates tables, trigger and stored procedure (`npm run setup-db`).
 - **ai-test.js** — lists the models available to your Gemini key (`npm run ai-test`).
-- **odev-frontend/** — Next.js UI; `src/app/page.js` holds the Supervisor panel and role screens.
+- **frontend/** — Next.js UI; `src/app/page.js` holds the Supervisor panel and role screens.
+- **db/seed.sql** — schema + sample data dump (reference only; `npm run setup-db` is the source of truth).
 - **docker-compose.yml** — postgres_db, rabbitmq, backend, frontend services.
 
 ## Running
 
 - Docker: `docker-compose up --build`
 - Local backend: `npm install && npm run setup-db && npm start`
-- Local frontend: `cd odev-frontend && npm install && npm run dev`
+- Local frontend: `cd frontend && npm install && npm run dev`
 
 ## Rules
 
@@ -30,7 +31,9 @@ Full-stack microservice project: role-based dynamic authorization, RabbitMQ RPC,
 - The backend connects to RabbitMQ via `RABBITMQ_URL` (`amqp://rabbitmq` in Docker, `amqp://localhost` locally).
 - User files under `uploads/` are not committed (see `.gitignore`).
 
-## Note on endpoint/identifier names
+## Note on naming
 
-Endpoint paths and some identifiers are in Turkish (`/listele`, `/ai-analiz`, `genel_veriler`), matching
-the frontend calls in `odev-frontend/src/app/page.js`. Keep them consistent across backend and frontend.
+Endpoint paths and API payload keys are English (`/records`, `/ai-analyze`, `document`). The database
+schema is still Turkish (`genel_veriler`, `sistem_loglari`, `kayit_tarihi`, `veri`) — this is a known
+inconsistency, scheduled to be renamed together with the upcoming auth/RBAC migration. Until then, keep
+SQL identifiers matching `db-kurulum.js` and `db/seed.sql`.

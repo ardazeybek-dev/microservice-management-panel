@@ -1,7 +1,7 @@
 {
-  "name": "odev_backend",
+  "name": "microservice-management-panel-backend",
   "version": "1.0.0",
-  "description": "Yetkilendirme, RabbitMQ RPC ve Gemini AI destekli dosya analizi içeren microservice backend",
+  "description": "Express backend with role-based authorization, RabbitMQ RPC messaging, PostgreSQL JSONB logging and Gemini AI document analysis",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -15,8 +15,8 @@
     "gemini",
     "microservice"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "Seyid Arda Zeybek <ardazybk18@gmail.com>",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
