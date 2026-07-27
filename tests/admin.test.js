@@ -26,7 +26,7 @@ describe('GET /admin/permissions', () => {
             .toEqual(['Company', 'School', 'Student', 'Supervisor']);
 
         const student = res.body.roles.find((r) => r.role_name === 'Student');
-        expect(student.permissions.sort()).toEqual(['ai:analyze', 'records:read']);
+        expect(student.permissions.sort()).toEqual(['ai:analyze', 'documents:read', 'records:read']);
 
         expect(res.body.availablePermissions.map((p) => p.code))
             .toEqual(expect.arrayContaining(['records:read', 'permissions:manage']));
@@ -75,16 +75,29 @@ describe('PUT /admin/permissions/:roleId', () => {
 
     it('leaves existing permissions untouched when the request is rejected', async () => {
         const roleId = await getRoleId('Student');
+
+        const codesFor = async () => {
+            const { rows } = await pool.query(
+                `SELECT p.code FROM permissions p
+                   JOIN role_permissions rp ON rp.permission_id = p.id
+                  WHERE rp.role_id = $1 ORDER BY p.code`,
+                [roleId]
+            );
+            return rows.map((row) => row.code);
+        };
+
+        // Compared against itself rather than a hard-coded count: the point is
+        // that a rejected write changes nothing, which stays true whatever the
+        // baseline happens to be.
+        const before = await codesFor();
+
         await request(app)
             .put(`/admin/permissions/${roleId}`)
             .set(auth(supervisor.token))
             .send({ permissions: ['made:up'] });
 
-        const { rows } = await pool.query(
-            'SELECT COUNT(*)::int AS n FROM role_permissions WHERE role_id = $1',
-            [roleId]
-        );
-        expect(rows[0].n).toBe(2); // the Student baseline survived
+        expect(await codesFor()).toEqual(before);
+        expect(before.length).toBeGreaterThan(0);
     });
 
     it('refuses to strip permissions:manage from Supervisor', async () => {

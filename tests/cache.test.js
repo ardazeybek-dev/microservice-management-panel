@@ -39,11 +39,11 @@ describeCache('permission cache', () => {
         expect(await cacheGet(cacheKey(roleId))).toBeNull();
 
         const first = await getPermissionsForRole(roleId);
-        expect(first.sort()).toEqual(['ai:analyze', 'records:read']);
+        expect(first.sort()).toEqual(['ai:analyze', 'documents:read', 'records:read']);
 
         const cached = await cacheGet(cacheKey(roleId));
         expect(cached).not.toBeNull();
-        expect(JSON.parse(cached).sort()).toEqual(['ai:analyze', 'records:read']);
+        expect(JSON.parse(cached).sort()).toEqual(first.sort());
 
         expect((await getPermissionsForRole(roleId)).sort()).toEqual(first.sort());
     });
@@ -132,9 +132,9 @@ describeCache('permission cache', () => {
 
         await cacheSet(cacheKey(roleId), 'not-json-at-all', 60);
 
-        expect((await getPermissionsForRole(roleId)).sort()).toEqual(['ai:analyze', 'records:read']);
+        const expected = ['ai:analyze', 'documents:read', 'records:read'];
+        expect((await getPermissionsForRole(roleId)).sort()).toEqual(expected);
         // The bad entry is replaced rather than left to keep failing.
-        expect(JSON.parse(await cacheGet(cacheKey(roleId))).sort())
-            .toEqual(['ai:analyze', 'records:read']);
+        expect(JSON.parse(await cacheGet(cacheKey(roleId))).sort()).toEqual(expected);
     });
 });

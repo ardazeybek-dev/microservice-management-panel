@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import AiPanel from "@/components/AiPanel";
+import DocumentsPanel from "@/components/DocumentsPanel";
 import PermissionMatrix from "@/components/PermissionMatrix";
 import RecordsPanel from "@/components/RecordsPanel";
 import RpcPanel from "@/components/RpcPanel";
@@ -91,6 +92,7 @@ export default function DashboardPage() {
 
             <div className="space-y-6">
                 <PermissionMatrix />
+                <DocumentsPanel />
                 <RecordsPanel />
                 <RpcPanel />
                 <AiPanel />

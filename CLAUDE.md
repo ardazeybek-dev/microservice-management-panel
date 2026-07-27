@@ -16,8 +16,12 @@ in front of the permission lookup.
 - **src/middleware/auth.js** — `authenticate()` and `requirePermission(code)`.
 - **src/routes/** — `auth` · `records` · `ai` · `rpc` · `admin`.
 - **src/services/permission.service.js** — permission reads/writes and cache invalidation.
+- **src/services/embedding.service.js** — Gemini or offline embeddings, both 768 dimensions.
+- **src/services/document.service.js** — chunking, ingestion, pgvector cosine search.
 - **src/config/** — `db.js`, `rabbitmq.js`, `redis.js`.
-- **db/schema.sql** — the schema, idempotent. Source of truth.
+- **db/schema.sql** — the schema, idempotent. Source of truth, including the baseline role grants:
+  the test helper parses them out of this file rather than keeping its own copy.
+  Requires an image with pgvector (`pgvector/pgvector:pg15`).
 - **scripts/setup-db.js** — applies the schema, seeds the first Supervisor (`npm run setup-db`).
 - **tests/** — integration suite against a real PostgreSQL; `globalSetup` builds a throwaway
   `*_test` database and refuses to run against anything else.
@@ -51,6 +55,17 @@ in front of the permission lookup.
 - `POST /auth/register` requires `users:write`. It takes the role from the request body, so leaving
   it unauthenticated would let anyone create a Supervisor. The first Supervisor comes from
   `setup-db` and `SEED_ADMIN_*`; there is intentionally no bootstrap path through the API.
+
+### Embeddings
+
+- The vector column is `vector(768)`; both providers must produce exactly that. `gemini-embedding-001`
+  defaults to 3072, so `outputDimensionality` is passed and the result renormalised.
+- Every chunk stores `embedding_model` and searches filter on it. Never compare vectors across
+  models — the result is not "worse ranking", it is arbitrary ranking.
+- Tests force `EMBEDDING_PROVIDER=local` and delete `GEMINI_API_KEY`, so no test can reach the
+  network. Note the key may live in the machine's environment rather than `.env`.
+- Only throw client-visible errors through `clientError()` in `document.service.js`. A route must not
+  reflect an upstream `err.status` — a 404 from the embedding API is not the caller's 404.
 
 ### Dependencies
 

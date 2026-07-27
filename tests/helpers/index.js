@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const bcrypt = require('bcryptjs');
 const request = require('supertest');
 const { createApp } = require('../../src/app');
@@ -80,6 +82,33 @@ async function createUserAndLogin(role, password = PASSWORD) {
 }
 
 /**
+ * The baseline grant statements, lifted straight out of db/schema.sql.
+ *
+ * These used to be copied into this file by hand, which meant the tests
+ * asserted against a baseline that quietly stopped matching the schema — the
+ * day documents:read was added, every document test failed with 403 for a
+ * reason that had nothing to do with the code under test. Parsing the real
+ * file keeps one definition instead of two.
+ */
+let baselineGrantsCache = null;
+
+function baselineGrantStatements() {
+    if (baselineGrantsCache) return baselineGrantsCache;
+
+    const schema = fs.readFileSync(path.join(__dirname, '..', '..', 'db', 'schema.sql'), 'utf-8');
+
+    baselineGrantsCache = schema
+        .split(';')
+        .map((statement) => statement.trim())
+        .filter((statement) => /INSERT\s+INTO\s+role_permissions/i.test(statement));
+
+    if (baselineGrantsCache.length === 0) {
+        throw new Error('No role_permissions grants found in db/schema.sql — has it been restructured?');
+    }
+    return baselineGrantsCache;
+}
+
+/**
  * Restores the baseline role/permission grants defined in db/schema.sql.
  *
  * Writes role_permissions directly, so it has to invalidate the cache itself —
@@ -89,27 +118,10 @@ async function createUserAndLogin(role, password = PASSWORD) {
  */
 async function resetPermissions() {
     await pool.query('DELETE FROM role_permissions');
-    await pool.query(`
-        INSERT INTO role_permissions (role_id, permission_id)
-        SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'Supervisor';
-    `);
-    await pool.query(`
-        INSERT INTO role_permissions (role_id, permission_id)
-        SELECT r.id, p.id FROM roles r JOIN permissions p ON p.code IN ('records:read', 'ai:analyze')
-        WHERE r.name = 'Student';
-    `);
-    await pool.query(`
-        INSERT INTO role_permissions (role_id, permission_id)
-        SELECT r.id, p.id FROM roles r JOIN permissions p
-          ON p.code IN ('records:read', 'records:write', 'ai:analyze')
-        WHERE r.name = 'School';
-    `);
-    await pool.query(`
-        INSERT INTO role_permissions (role_id, permission_id)
-        SELECT r.id, p.id FROM roles r JOIN permissions p
-          ON p.code IN ('records:read', 'ai:analyze', 'rpc:execute')
-        WHERE r.name = 'Company';
-    `);
+
+    for (const statement of baselineGrantStatements()) {
+        await pool.query(statement);
+    }
 
     await invalidateAllRoles();
 }

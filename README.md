@@ -13,7 +13,7 @@ enforces.
 |----------------|----------------------------------------|
 | Frontend       | Next.js (React + TailwindCSS)          |
 | Backend        | Node.js + Express                      |
-| Database       | PostgreSQL (JSONB, triggers, procedures) |
+| Database       | PostgreSQL (JSONB, triggers, procedures, pgvector) |
 | Message Broker | RabbitMQ (async + RPC)                 |
 | Cache          | Redis (optional)                       |
 | AI             | Google Gemini (file analysis)          |
@@ -35,6 +35,12 @@ enforces.
   permissions from `GET /auth/me` — never from the token payload. Each feature card declares the
   permission code it needs; a card the caller cannot use renders locked, with a button that fires the
   request anyway and prints the server's `403`, so the enforcement is visible rather than claimed.
+- **Retrieval-augmented answers:** Documents are split into overlapping chunks, embedded, and stored
+  in `pgvector`. A question is embedded too, the nearest chunks are retrieved by cosine distance, and
+  only those passages are given to the model — which then has to cite them. The retrieved passages
+  come back with the answer, because otherwise a reader cannot tell a grounded answer from a fluent
+  invention. `POST /documents/search` exposes the retrieval half on its own, so the ranking can be
+  inspected directly rather than guessed at through the generated text.
 - **Redis caching:** The per-request permission lookup is served from Redis when it is available.
   The interesting part is what the cache must not break — a Supervisor's edit still has to apply to
   the very next request — so `setRolePermissions` drops the role's key *after* the transaction
@@ -55,10 +61,10 @@ Being explicit so nobody is misled:
 | Docker Compose orchestration | ✅ Implemented |
 | Authentication (JWT + bcrypt) | ✅ Implemented |
 | Server-enforced dynamic RBAC | ✅ Implemented — permissions live in the database and are checked per request |
-| Automated tests + CI | ✅ 71 integration tests against a real PostgreSQL, run on Node 20 and 22, twice — with and without the cache |
+| Automated tests + CI | ✅ 99 integration tests against a real PostgreSQL, run on Node 20 and 22, twice — with and without the cache |
 | Frontend wired to real auth | ✅ Implemented — login, token storage, and permission-gated panels |
 | Redis caching | ✅ Implemented — optional, in front of the permission lookup, invalidated on write |
-| RAG / embeddings | ❌ Not yet |
+| RAG / embeddings | ✅ Implemented — pgvector store, chunked documents, cited answers |
 
 ## 📡 API
 
@@ -84,13 +90,34 @@ bootstrap path through the API.
 | `GET` | `/admin/permissions` | `permissions:manage` |
 | `PUT` | `/admin/permissions/:roleId` | `permissions:manage` |
 | `GET` | `/admin/users` | `users:read` |
+| `GET` | `/documents` | `documents:read` |
+| `POST` | `/documents` | `documents:write` |
+| `DELETE` | `/documents/:id` | `documents:write` |
+| `POST` | `/documents/search` | `documents:read` |
+| `POST` | `/documents/ask` | `documents:read` |
 
 Default roles: **Supervisor** (all permissions), **School** (read/write/analyze),
 **Company** (read/analyze/rpc), **Student** (read/analyze).
 
 Permission codes: `records:read`, `records:write`, `ai:analyze`, `rpc:execute`,
-`permissions:manage`, `users:read`, `users:write`. They are rows in the `permissions` table, so a
-Supervisor edits who holds what at runtime rather than through a redeploy.
+`permissions:manage`, `users:read`, `users:write`, `documents:read`, `documents:write`. They are rows
+in the `permissions` table, so a Supervisor edits who holds what at runtime rather than through a
+redeploy.
+
+### Embeddings without an API key
+
+`GEMINI_API_KEY` gets `gemini-embedding-001`, asked for 768 dimensions to fit the `vector(768)`
+column and renormalised afterwards, since truncating an embedding costs it its unit length.
+
+Without a key the app falls back to a deterministic hashing embedder. Be clear about what that is: it
+matches documents that share words, not documents that share meaning — "car" and "automobile" are as
+unrelated to it as "car" and "banana". It exists so the pipeline (chunking, storage, cosine search,
+ranking, citations) can be exercised in CI and by anyone who clones the repo, and the panel labels it
+as a fallback rather than passing it off as semantic search.
+
+Every chunk records the model that embedded it, and searches filter on that. Vectors from different
+models occupy unrelated coordinate spaces, so mixing them does not return worse results — it returns
+confidently ranked nonsense.
 
 ## 📁 Project structure
 
@@ -101,6 +128,8 @@ src/
   config/db.js              PostgreSQL pool
   config/rabbitmq.js        broker connection + task_queue consumer
   config/redis.js           optional cache; every helper degrades to a no-op
+  services/embedding.service.js  Gemini or offline embeddings, same dimensions
+  services/document.service.js   chunking, ingestion, cosine search
   middleware/auth.js        authenticate() and requirePermission()
   middleware/errorHandler.js
   routes/                   auth · records · ai · rpc · admin
@@ -119,9 +148,9 @@ frontend/
 ## 🧪 Tests
 
 ```bash
-npm test              # 63 tests; the 8 cache tests skip without Redis
+npm test              # 91 tests; the 8 cache tests skip without Redis
 
-# Same suite with the cache in front of every permission lookup — 71 tests.
+# Same suite with the cache in front of every permission lookup — 99 tests.
 # Use a dedicated database index so a run cannot evict a dev server's entries.
 TEST_REDIS_URL=redis://localhost:6379/15 npm test
 
@@ -164,8 +193,8 @@ broker; only their failure paths are covered today.
 2. ~~Integration tests and a CI pipeline~~ ✅ done
 3. ~~Wire the Next.js panel to the real auth API~~ ✅ done
 4. ~~Redis caching layer in front of the per-request permission lookup~~ ✅ done
-5. Cover the RabbitMQ paths with a broker service container in CI
-6. Retrieval-augmented document analysis (embeddings + pgvector) replacing the single-shot summary
+5. ~~Retrieval-augmented document analysis (embeddings + pgvector)~~ ✅ done
+6. Cover the RabbitMQ paths with a broker service container in CI
 
 ## ⚙️ Setup
 

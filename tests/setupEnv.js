@@ -33,3 +33,11 @@ if (process.env.TEST_REDIS_URL) {
 
 // Keep it short enough that a TTL-expiry test does not stall the suite.
 process.env.PERMISSION_CACHE_TTL_SECONDS = '60';
+
+/**
+ * No test may reach Gemini. Dropping the key also pins the two routes that
+ * need it to their documented 503, instead of the suite behaving one way on a
+ * machine that has a key and another way in CI.
+ */
+delete process.env.GEMINI_API_KEY;
+process.env.EMBEDDING_PROVIDER = 'local';

@@ -5,6 +5,10 @@
 --  Safe to run repeatedly: every statement is idempotent.
 -- =============================================================================
 
+-- pgvector, for the document embeddings further down. Requires an image that
+-- ships the extension — see docker-compose (pgvector/pgvector:pg15).
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- -----------------------------------------------------------------------------
 --  AUTHORIZATION
 --
@@ -68,6 +72,47 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 -- -----------------------------------------------------------------------------
+--  DOCUMENT STORE (retrieval-augmented generation)
+--
+--  A document is split into chunks, each chunk is embedded, and questions are
+--  answered from the chunks a similarity search returns rather than from the
+--  whole file. That is the difference from the single-shot /ai-analyze summary:
+--  it works on a corpus larger than one prompt, and every answer can point at
+--  the passages it came from.
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS documents (
+    id          SERIAL PRIMARY KEY,
+    title       VARCHAR(255) NOT NULL,
+    content     TEXT NOT NULL,
+    uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS document_chunks (
+    id              SERIAL PRIMARY KEY,
+    document_id     INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    chunk_index     INTEGER NOT NULL,
+    content         TEXT NOT NULL,
+    embedding       VECTOR(768) NOT NULL,
+    -- Which model produced this vector. Embeddings from different models live
+    -- in unrelated coordinate spaces, so comparing across them returns
+    -- confident nonsense: searches filter on this rather than trusting that
+    -- the provider never changed.
+    embedding_model VARCHAR(64) NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (document_id, chunk_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chunks_document ON document_chunks(document_id);
+CREATE INDEX IF NOT EXISTS idx_chunks_model    ON document_chunks(embedding_model);
+
+-- HNSW over cosine distance. Approximate, but the exact scan this replaces is
+-- linear in the number of chunks.
+CREATE INDEX IF NOT EXISTS idx_chunks_embedding
+    ON document_chunks USING hnsw (embedding vector_cosine_ops);
+
+-- -----------------------------------------------------------------------------
 --  AUDIT TRIGGER
 --  Every insert into records writes an audit row automatically, inside the
 --  same transaction — the application cannot forget to log.
@@ -108,7 +153,9 @@ INSERT INTO permissions (code, description) VALUES
     ('rpc:execute',        'Trigger a RabbitMQ RPC round trip'),
     ('permissions:manage', 'View and edit the role/permission matrix'),
     ('users:read',         'List users'),
-    ('users:write',        'Create user accounts')
+    ('users:write',        'Create user accounts'),
+    ('documents:read',     'Search documents and ask questions about them'),
+    ('documents:write',    'Add and remove documents from the corpus')
 ON CONFLICT (code) DO NOTHING;
 
 -- Supervisor gets everything.
@@ -117,20 +164,23 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
 WHERE r.name = 'Supervisor'
 ON CONFLICT DO NOTHING;
 
--- Student: read + analyze.
+-- Student: read + analyze + ask questions of the corpus.
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r JOIN permissions p ON p.code IN ('records:read', 'ai:analyze')
+SELECT r.id, p.id FROM roles r JOIN permissions p
+  ON p.code IN ('records:read', 'ai:analyze', 'documents:read')
 WHERE r.name = 'Student'
 ON CONFLICT DO NOTHING;
 
--- School: read + write + analyze.
+-- School: read + write + analyze, and curates the corpus.
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r JOIN permissions p ON p.code IN ('records:read', 'records:write', 'ai:analyze')
+SELECT r.id, p.id FROM roles r JOIN permissions p
+  ON p.code IN ('records:read', 'records:write', 'ai:analyze', 'documents:read', 'documents:write')
 WHERE r.name = 'School'
 ON CONFLICT DO NOTHING;
 
--- Company: read + analyze + rpc.
+-- Company: read + analyze + rpc + ask questions.
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r JOIN permissions p ON p.code IN ('records:read', 'ai:analyze', 'rpc:execute')
+SELECT r.id, p.id FROM roles r JOIN permissions p
+  ON p.code IN ('records:read', 'ai:analyze', 'rpc:execute', 'documents:read')
 WHERE r.name = 'Company'
 ON CONFLICT DO NOTHING;

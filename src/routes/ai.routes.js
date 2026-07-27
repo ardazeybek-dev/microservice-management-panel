@@ -11,7 +11,8 @@ const MAX_FILE_BYTES = 2 * 1024 * 1024; // 2 MB
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
 
 // Ordered by preference; each is tried in turn on a real API call.
-const MODEL_CANDIDATES = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-pro'];
+// gemini-pro used to sit at the end of this list; the API no longer serves it.
+const MODEL_CANDIDATES = ['gemini-2.5-flash', 'gemini-2.0-flash'];
 
 const upload = multer({
     storage: multer.diskStorage({

@@ -6,6 +6,7 @@ const recordsRoutes = require('./routes/records.routes');
 const aiRoutes = require('./routes/ai.routes');
 const rpcRoutes = require('./routes/rpc.routes');
 const adminRoutes = require('./routes/admin.routes');
+const documentRoutes = require('./routes/documents.routes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 /**
@@ -25,6 +26,7 @@ function createApp() {
     app.use('/ai-analyze', aiRoutes);
     app.use('/rpc-test', rpcRoutes);
     app.use('/admin', adminRoutes);
+    app.use('/documents', documentRoutes);
 
     app.use(notFound);
     app.use(errorHandler);

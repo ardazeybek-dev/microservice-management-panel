@@ -20,7 +20,8 @@ jobs:
     # the schema, the trigger and the JSONB queries are all exercised for real.
     services:
       postgres:
-        image: postgres:15
+        # Carries the pgvector extension the document store needs.
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
