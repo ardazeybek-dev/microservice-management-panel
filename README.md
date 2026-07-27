@@ -1,5 +1,7 @@
 # 🚀 AI-Integrated Microservice Management Panel
 
+[![CI](https://github.com/ardazeybek-dev/microservice-management-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/ardazeybek-dev/microservice-management-panel/actions/workflows/ci.yml)
+
 A full-stack demo system built around asynchronous service communication: RabbitMQ (async publish +
 RPC request/reply), PostgreSQL logging with JSONB and a trigger/procedure, document analysis powered
 by Google Gemini, and a Next.js panel with Student / School / Company role screens.
@@ -42,8 +44,8 @@ Being explicit so nobody is misled:
 | Docker Compose orchestration | ✅ Implemented |
 | Authentication (JWT + bcrypt) | ✅ Implemented |
 | Server-enforced dynamic RBAC | ✅ Implemented — permissions live in the database and are checked per request |
+| Automated tests + CI | ✅ 60 integration tests against a real PostgreSQL, run on Node 20 and 22 |
 | Frontend wired to real auth | ⚠️ Not yet — the Next.js panel still toggles permissions in local React state |
-| Automated tests / CI | ❌ Not yet |
 | Redis caching | ❌ Not yet |
 | RAG / embeddings | ❌ Not yet |
 
@@ -86,13 +88,34 @@ scripts/setup-db.js         applies the schema, seeds the first Supervisor
 frontend/                   Next.js panel
 ```
 
+## 🧪 Tests
+
+```bash
+npm test              # 60 integration tests
+npm run test:coverage # with a coverage report
+```
+
+The suite runs against a **real PostgreSQL instance**, not mocks — the schema, the audit trigger and
+the JSONB queries are all genuinely exercised. `tests/globalSetup.js` creates a throwaway
+`microservice_panel_test` database, applies `db/schema.sql`, and drops it afterwards. It refuses to
+run at all unless the database name ends in `_test`, so a mistyped variable cannot touch real data.
+
+What is covered: registration and login (including bcrypt hashing, timing-safe rejection of unknown
+emails, expired and forged tokens), permission enforcement per route, permissions granted and revoked
+mid-session on an already-issued token, pagination limits, the audit trigger, upload validation, and
+the error handler not leaking internals.
+
+Current line coverage is ~79%. The gap is `rpc.routes.js` and `config/rabbitmq.js`, which need a live
+broker; only their failure paths are covered today.
+
 ## 🗺️ Roadmap
 
 1. ~~Real authentication and server-enforced RBAC~~ ✅ done
-2. Wire the Next.js panel to the real auth API (login screen, token storage, live permission matrix)
-3. Redis caching layer in front of the per-request permission lookup
-4. Jest + Supertest integration tests and a GitHub Actions CI pipeline
-5. Retrieval-augmented document analysis (embeddings + pgvector) replacing the single-shot summary
+2. ~~Integration tests and a CI pipeline~~ ✅ done
+3. Wire the Next.js panel to the real auth API (login screen, token storage, live permission matrix)
+4. Redis caching layer in front of the per-request permission lookup
+5. Cover the RabbitMQ paths with a broker service container in CI
+6. Retrieval-augmented document analysis (embeddings + pgvector) replacing the single-shot summary
 
 ## ⚙️ Setup
 
