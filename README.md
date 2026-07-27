@@ -132,6 +132,17 @@ CI runs both passes on Node 20 and 22. The second one is the real cache test:
 if invalidation were wrong, the existing authorization assertions would start
 failing rather than some cache-specific assertion.
 
+### After adding a dependency on Windows
+
+Run `npm run lock:refresh`, not just `npm install`.
+
+An incremental `npm install` on Windows drops the wasm32-wasi optional packages
+(`@emnapi/*`) from the lock while leaving `@napi-rs/wasm-runtime`'s dependency
+on them in place. Windows never installs those, so nothing looks wrong locally
+— but on Linux `npm ci` resolves the range, finds no matching entry, and
+refuses to install. It fails only in CI, at the very first step. `lock:refresh`
+regenerates the lock from scratch and then verifies it with `npm ci --dry-run`.
+
 The suite runs against a **real PostgreSQL instance**, not mocks — the schema, the audit trigger and
 the JSONB queries are all genuinely exercised. `tests/globalSetup.js` creates a throwaway
 `microservice_panel_test` database, applies `db/schema.sql`, and drops it afterwards. It refuses to
