@@ -4,7 +4,8 @@
 
 A full-stack demo system built around asynchronous service communication: RabbitMQ (async publish +
 RPC request/reply), PostgreSQL logging with JSONB and a trigger/procedure, document analysis powered
-by Google Gemini, and a Next.js panel with Student / School / Company role screens.
+by Google Gemini, and a Next.js panel whose every screen is gated by permissions the server actually
+enforces.
 
 ## 🛠 Tech Stack
 
@@ -29,6 +30,10 @@ by Google Gemini, and a Next.js panel with Student / School / Company role scree
 - **PostgreSQL:** Records are stored in a `JSONB` column; an `AFTER INSERT` trigger calls a `plpgsql`
   procedure that writes an audit row automatically.
 - **Gemini AI:** An uploaded `.txt` file is summarized by Gemini, with fallback across model versions.
+- **Panel bound to the real API:** The Next.js frontend logs in, stores the JWT and reads its
+  permissions from `GET /auth/me` — never from the token payload. Each feature card declares the
+  permission code it needs; a card the caller cannot use renders locked, with a button that fires the
+  request anyway and prints the server's `403`, so the enforcement is visible rather than claimed.
 - **Docker Compose:** Postgres, RabbitMQ, backend and frontend start with one command, with
   healthchecks so the backend waits until its dependencies are actually ready.
 
@@ -38,27 +43,33 @@ Being explicit so nobody is misled:
 
 | Area | Status |
 |---|---|
-| RabbitMQ async + RPC | ✅ Implemented (`index.js`) |
-| PostgreSQL JSONB + trigger + procedure | ✅ Implemented (`db-kurulum.js`) |
+| RabbitMQ async + RPC | ✅ Implemented (`src/config/rabbitmq.js`, `src/routes/rpc.routes.js`) |
+| PostgreSQL JSONB + trigger + procedure | ✅ Implemented (`db/schema.sql`) |
 | Gemini document analysis | ✅ Implemented — `.txt` only |
 | Docker Compose orchestration | ✅ Implemented |
 | Authentication (JWT + bcrypt) | ✅ Implemented |
 | Server-enforced dynamic RBAC | ✅ Implemented — permissions live in the database and are checked per request |
-| Automated tests + CI | ✅ 60 integration tests against a real PostgreSQL, run on Node 20 and 22 |
-| Frontend wired to real auth | ⚠️ Not yet — the Next.js panel still toggles permissions in local React state |
+| Automated tests + CI | ✅ 63 integration tests against a real PostgreSQL, run on Node 20 and 22 |
+| Frontend wired to real auth | ✅ Implemented — login, token storage, and permission-gated panels |
 | Redis caching | ❌ Not yet |
 | RAG / embeddings | ❌ Not yet |
 
 ## 📡 API
 
-All routes except `/health`, `/auth/register` and `/auth/login` require an
-`Authorization: Bearer <token>` header. Permission codes are enforced server-side.
+All routes except `/health` and `/auth/login` require an `Authorization: Bearer <token>` header.
+Permission codes are enforced server-side.
+
+Note that `/auth/register` is **not** open self-service. It takes the new user's role from the
+request body, so leaving it unauthenticated would let anyone hand themselves a Supervisor account and
+rewrite the permission matrix. Creating accounts is an administrative act and sits behind
+`users:write`; the first Supervisor is seeded by `npm run setup-db`, and there is deliberately no
+bootstrap path through the API.
 
 | Method | Route | Required permission |
 |---|---|---|
 | `GET` | `/health` | — |
-| `POST` | `/auth/register` | — |
 | `POST` | `/auth/login` | — |
+| `POST` | `/auth/register` | `users:write` |
 | `GET` | `/auth/me` | authenticated |
 | `GET` | `/records` | `records:read` |
 | `POST` | `/records` | `records:write` |
@@ -70,6 +81,10 @@ All routes except `/health`, `/auth/register` and `/auth/login` require an
 
 Default roles: **Supervisor** (all permissions), **School** (read/write/analyze),
 **Company** (read/analyze/rpc), **Student** (read/analyze).
+
+Permission codes: `records:read`, `records:write`, `ai:analyze`, `rpc:execute`,
+`permissions:manage`, `users:read`, `users:write`. They are rows in the `permissions` table, so a
+Supervisor edits who holds what at runtime rather than through a redeploy.
 
 ## 📁 Project structure
 
@@ -85,13 +100,19 @@ src/
   services/permission.service.js
 db/schema.sql               full schema, idempotent
 scripts/setup-db.js         applies the schema, seeds the first Supervisor
-frontend/                   Next.js panel
+tests/                      integration suite + globalSetup/globalTeardown
+frontend/
+  src/lib/api.js            fetch wrapper — attaches the token, normalises errors
+  src/lib/auth-context.js   session state; permissions come from GET /auth/me
+  src/app/login/page.js     login screen
+  src/app/page.js           dashboard
+  src/components/           Panel (permission gate) · matrix · records · rpc · ai
 ```
 
 ## 🧪 Tests
 
 ```bash
-npm test              # 60 integration tests
+npm test              # 63 integration tests
 npm run test:coverage # with a coverage report
 ```
 
@@ -103,7 +124,9 @@ run at all unless the database name ends in `_test`, so a mistyped variable cann
 What is covered: registration and login (including bcrypt hashing, timing-safe rejection of unknown
 emails, expired and forged tokens), permission enforcement per route, permissions granted and revoked
 mid-session on an already-issued token, pagination limits, the audit trigger, upload validation, and
-the error handler not leaking internals.
+the error handler not leaking internals. Three tests specifically pin the registration route shut: an
+anonymous caller gets 401, a Student registering anyone gets 403, and a Student cannot mint a
+Supervisor — each asserting the row was never created, not merely that the status code was right.
 
 Current line coverage is ~79%. The gap is `rpc.routes.js` and `config/rabbitmq.js`, which need a live
 broker; only their failure paths are covered today.
@@ -112,7 +135,7 @@ broker; only their failure paths are covered today.
 
 1. ~~Real authentication and server-enforced RBAC~~ ✅ done
 2. ~~Integration tests and a CI pipeline~~ ✅ done
-3. Wire the Next.js panel to the real auth API (login screen, token storage, live permission matrix)
+3. ~~Wire the Next.js panel to the real auth API~~ ✅ done
 4. Redis caching layer in front of the per-request permission lookup
 5. Cover the RabbitMQ paths with a broker service container in CI
 6. Retrieval-augmented document analysis (embeddings + pgvector) replacing the single-shot summary
@@ -161,6 +184,24 @@ npm run dev                 # http://localhost:3000
 
 > You need to run PostgreSQL and RabbitMQ separately for local development (or just start those two
 > from Docker: `docker-compose up -d postgres_db rabbitmq`).
+>
+> `NEXT_PUBLIC_API_URL` and the backend's `PORT` are read independently and will not agree on their
+> own — if you move the backend off 3006, change both.
+
+### Signing in the first time
+
+`npm run setup-db` creates one Supervisor from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`; sign in
+with those. Everyone else is created from that account, since `/auth/register` requires
+`users:write`:
+
+```bash
+curl -X POST http://localhost:3006/auth/register \
+  -H "Authorization: Bearer <supervisor-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"student@example.com","password":"at-least-8-chars","role":"Student"}'
+```
+
+Grab `<supervisor-token>` from the `token` field of `POST /auth/login`.
 
 ## 🔐 Security / Environment Variables
 
@@ -169,8 +210,10 @@ not committed to git. See `.env.example` and `frontend/.env.example` for sample 
 
 ## 🗄️ Database
 
-- The schema/trigger/procedure are created by `db-kurulum.js` (`npm run setup-db`) — this is the source of truth.
-- `db/seed.sql` is a reference dump of the same schema plus sample rows.
+- `db/schema.sql` is the source of truth for the schema, trigger and procedure. `npm run setup-db`
+  (`scripts/setup-db.js`) applies it and then seeds the first Supervisor from `SEED_ADMIN_*`. Every
+  statement is idempotent, so re-running it never clobbers a Supervisor's runtime permission edits.
+- `db/seed.sql` is an older reference dump kept for illustration only.
 
 ## 👥 Contributors
 
