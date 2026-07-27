@@ -15,6 +15,7 @@ enforces.
 | Backend        | Node.js + Express                      |
 | Database       | PostgreSQL (JSONB, triggers, procedures) |
 | Message Broker | RabbitMQ (async + RPC)                 |
+| Cache          | Redis (optional)                       |
 | AI             | Google Gemini (file analysis)          |
 | Containers     | Docker & Docker Compose                |
 
@@ -34,7 +35,12 @@ enforces.
   permissions from `GET /auth/me` — never from the token payload. Each feature card declares the
   permission code it needs; a card the caller cannot use renders locked, with a button that fires the
   request anyway and prints the server's `403`, so the enforcement is visible rather than claimed.
-- **Docker Compose:** Postgres, RabbitMQ, backend and frontend start with one command, with
+- **Redis caching:** The per-request permission lookup is served from Redis when it is available.
+  The interesting part is what the cache must not break — a Supervisor's edit still has to apply to
+  the very next request — so `setRolePermissions` drops the role's key *after* the transaction
+  commits, and only that role's key. The cache is optional: with no `REDIS_URL` every lookup goes to
+  PostgreSQL, and if Redis fails mid-request the read falls through rather than erroring.
+- **Docker Compose:** Postgres, RabbitMQ, Redis, backend and frontend start with one command, with
   healthchecks so the backend waits until its dependencies are actually ready.
 
 ### ⚠️ Current status — what is and isn't implemented
@@ -49,9 +55,9 @@ Being explicit so nobody is misled:
 | Docker Compose orchestration | ✅ Implemented |
 | Authentication (JWT + bcrypt) | ✅ Implemented |
 | Server-enforced dynamic RBAC | ✅ Implemented — permissions live in the database and are checked per request |
-| Automated tests + CI | ✅ 63 integration tests against a real PostgreSQL, run on Node 20 and 22 |
+| Automated tests + CI | ✅ 71 integration tests against a real PostgreSQL, run on Node 20 and 22, twice — with and without the cache |
 | Frontend wired to real auth | ✅ Implemented — login, token storage, and permission-gated panels |
-| Redis caching | ❌ Not yet |
+| Redis caching | ✅ Implemented — optional, in front of the permission lookup, invalidated on write |
 | RAG / embeddings | ❌ Not yet |
 
 ## 📡 API
@@ -94,6 +100,7 @@ src/
   app.js                    builds the Express app (exported so tests can drive it)
   config/db.js              PostgreSQL pool
   config/rabbitmq.js        broker connection + task_queue consumer
+  config/redis.js           optional cache; every helper degrades to a no-op
   middleware/auth.js        authenticate() and requirePermission()
   middleware/errorHandler.js
   routes/                   auth · records · ai · rpc · admin
@@ -112,9 +119,18 @@ frontend/
 ## 🧪 Tests
 
 ```bash
-npm test              # 63 integration tests
+npm test              # 63 tests; the 8 cache tests skip without Redis
+
+# Same suite with the cache in front of every permission lookup — 71 tests.
+# Use a dedicated database index so a run cannot evict a dev server's entries.
+TEST_REDIS_URL=redis://localhost:6379/15 npm test
+
 npm run test:coverage # with a coverage report
 ```
+
+CI runs both passes on Node 20 and 22. The second one is the real cache test:
+if invalidation were wrong, the existing authorization assertions would start
+failing rather than some cache-specific assertion.
 
 The suite runs against a **real PostgreSQL instance**, not mocks — the schema, the audit trigger and
 the JSONB queries are all genuinely exercised. `tests/globalSetup.js` creates a throwaway
@@ -136,7 +152,7 @@ broker; only their failure paths are covered today.
 1. ~~Real authentication and server-enforced RBAC~~ ✅ done
 2. ~~Integration tests and a CI pipeline~~ ✅ done
 3. ~~Wire the Next.js panel to the real auth API~~ ✅ done
-4. Redis caching layer in front of the per-request permission lookup
+4. ~~Redis caching layer in front of the per-request permission lookup~~ ✅ done
 5. Cover the RabbitMQ paths with a broker service container in CI
 6. Retrieval-augmented document analysis (embeddings + pgvector) replacing the single-shot summary
 
@@ -182,8 +198,11 @@ npm install
 npm run dev                 # http://localhost:3000
 ```
 
-> You need to run PostgreSQL and RabbitMQ separately for local development (or just start those two
-> from Docker: `docker-compose up -d postgres_db rabbitmq`).
+> You need to run PostgreSQL, RabbitMQ and (optionally) Redis separately for local development, or
+> just start them from Docker: `docker-compose up -d postgres_db rabbitmq redis`.
+>
+> Leaving `REDIS_URL` blank is fine — the server says so at boot and reads permissions straight from
+> PostgreSQL.
 >
 > `NEXT_PUBLIC_API_URL` and the backend's `PORT` are read independently and will not agree on their
 > own — if you move the backend off 3006, change both.

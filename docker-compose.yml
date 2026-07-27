@@ -28,15 +28,28 @@ services:
       retries: 10
     restart: always
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
   backend:
     build: .
     ports:
       - "3006:3006"
-    # Servisler sadece "başlamış" değil, "hazır" olana kadar bekle.
+    # Wait until the services are actually ready, not merely started.
     depends_on:
       postgres_db:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     environment:
       - DB_USER=${DB_USER:-postgres}
@@ -45,6 +58,7 @@ services:
       - DB_NAME=${DB_NAME:-microservice_panel}
       - DB_PORT=5432
       - RABBITMQ_URL=amqp://rabbitmq
+      - REDIS_URL=redis://redis:6379
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     restart: always
 

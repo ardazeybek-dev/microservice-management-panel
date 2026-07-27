@@ -14,3 +14,22 @@ process.env.JWT_EXPIRES_IN = '1h';
 
 // Never let a test run reach a real broker.
 delete process.env.RABBITMQ_URL;
+
+/**
+ * Caching is off unless TEST_REDIS_URL is given, and a developer's own
+ * REDIS_URL is discarded either way — a test run must not evict entries the
+ * running dev server is relying on. Point TEST_REDIS_URL at a dedicated
+ * database index, e.g. redis://localhost:6379/15.
+ *
+ * CI sets it, so the whole suite runs a second time over with the cache in
+ * front of every permission lookup. That is the point: the existing
+ * authorization tests are the invalidation tests.
+ */
+if (process.env.TEST_REDIS_URL) {
+    process.env.REDIS_URL = process.env.TEST_REDIS_URL;
+} else {
+    delete process.env.REDIS_URL;
+}
+
+// Keep it short enough that a TTL-expiry test does not stall the suite.
+process.env.PERMISSION_CACHE_TTL_SECONDS = '60';

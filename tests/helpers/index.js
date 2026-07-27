@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const request = require('supertest');
 const { createApp } = require('../../src/app');
 const { pool } = require('../../src/config/db');
+const { invalidateRole } = require('../../src/services/permission.service');
 
 const app = createApp();
 
@@ -78,7 +79,14 @@ async function createUserAndLogin(role, password = PASSWORD) {
     return { email, password, token: loggedIn.body.token, id: registered.body.user.id };
 }
 
-/** Restores the baseline role/permission grants defined in db/schema.sql. */
+/**
+ * Restores the baseline role/permission grants defined in db/schema.sql.
+ *
+ * Writes role_permissions directly, so it has to invalidate the cache itself —
+ * setRolePermissions is not involved. Skipping that would let a cached set
+ * from a previous test survive the reset, and the suite would start passing
+ * for reasons that have nothing to do with the code under test.
+ */
 async function resetPermissions() {
     await pool.query('DELETE FROM role_permissions');
     await pool.query(`
@@ -102,6 +110,14 @@ async function resetPermissions() {
           ON p.code IN ('records:read', 'ai:analyze', 'rpc:execute')
         WHERE r.name = 'Company';
     `);
+
+    await invalidateAllRoles();
+}
+
+/** Drops every role's cached permission set. No-op when the cache is off. */
+async function invalidateAllRoles() {
+    const { rows } = await pool.query('SELECT id FROM roles');
+    await Promise.all(rows.map((row) => invalidateRole(row.id)));
 }
 
 async function getRoleId(name) {
@@ -119,6 +135,7 @@ module.exports = {
     createUserAndLogin,
     bootstrapSupervisorToken,
     resetPermissions,
+    invalidateAllRoles,
     getRoleId,
     auth,
     PASSWORD,

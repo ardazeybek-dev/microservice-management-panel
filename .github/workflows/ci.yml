@@ -33,6 +33,16 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       DB_USER: postgres
       DB_PASSWORD: postgres
@@ -52,8 +62,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
+      # Once without the cache, once with it. The second pass is what proves
+      # invalidation: the same authorization assertions have to hold with a
+      # cache sitting in front of every permission lookup.
+      - name: Run tests (cache disabled)
         run: npm test
+
+      - name: Run tests (cache enabled)
+        run: npm test
+        env:
+          TEST_REDIS_URL: redis://localhost:6379/15
 
   frontend-build:
     name: Frontend build
