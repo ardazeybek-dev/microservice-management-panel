@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../config/db');
-const { signToken, authenticate, JWT_EXPIRES_IN } = require('../middleware/auth');
+const { signToken, authenticate, requirePermission, JWT_EXPIRES_IN } = require('../middleware/auth');
 const { getPermissionsForRole } = require('../services/permission.service');
 
 const router = express.Router();
@@ -15,8 +15,19 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // password" — otherwise response timing leaks which emails are registered.
 const DUMMY_HASH = bcrypt.hashSync('invalid-placeholder-password', BCRYPT_ROUNDS);
 
-/** POST /auth/register — creates a user in the given role. */
-router.post('/register', async (req, res, next) => {
+/**
+ * POST /auth/register — creates a user in the given role.
+ *
+ * Deliberately NOT open self-service. The role comes from the request body, so
+ * an unauthenticated version of this route lets anyone mint themselves a
+ * Supervisor and take over the permission matrix — which would make every other
+ * check in this codebase decorative. Account creation is an administrative act
+ * and sits behind users:write.
+ *
+ * The first Supervisor is seeded out-of-band by scripts/setup-db.js; there is
+ * no bootstrap path through the API.
+ */
+router.post('/register', authenticate, requirePermission('users:write'), async (req, res, next) => {
     const { email, password, role } = req.body || {};
 
     if (!email || !password || !role) {

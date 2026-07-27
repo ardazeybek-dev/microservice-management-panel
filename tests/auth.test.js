@@ -1,5 +1,14 @@
 const jwt = require('jsonwebtoken');
-const { app, pool, request, uniqueEmail, createUserAndLogin, auth, PASSWORD } = require('./helpers');
+const {
+    app,
+    pool,
+    request,
+    uniqueEmail,
+    createUserAndLogin,
+    bootstrapSupervisorToken,
+    auth,
+    PASSWORD,
+} = require('./helpers');
 
 afterAll(async () => {
     await pool.end();
@@ -14,11 +23,18 @@ describe('GET /health', () => {
 });
 
 describe('POST /auth/register', () => {
+    let adminToken;
+
+    beforeAll(async () => {
+        adminToken = await bootstrapSupervisorToken();
+    });
+
+    const register = (body, token = adminToken) =>
+        request(app).post('/auth/register').set(auth(token)).send(body);
+
     it('creates a user and never returns the password', async () => {
         const email = uniqueEmail('new');
-        const res = await request(app)
-            .post('/auth/register')
-            .send({ email, password: PASSWORD, role: 'Student' });
+        const res = await register({ email, password: PASSWORD, role: 'Student' });
 
         expect(res.status).toBe(201);
         expect(res.body.user).toMatchObject({ email, role: 'Student' });
@@ -28,7 +44,7 @@ describe('POST /auth/register', () => {
 
     it('stores the password as a bcrypt hash, not plain text', async () => {
         const email = uniqueEmail('hashed');
-        await request(app).post('/auth/register').send({ email, password: PASSWORD, role: 'Student' });
+        await register({ email, password: PASSWORD, role: 'Student' });
 
         const { rows } = await pool.query('SELECT password_hash FROM users WHERE email = $1', [email]);
         expect(rows[0].password_hash).not.toBe(PASSWORD);
@@ -37,11 +53,9 @@ describe('POST /auth/register', () => {
 
     it('lowercases the email so casing cannot create duplicates', async () => {
         const email = uniqueEmail('Case');
-        await request(app).post('/auth/register')
-            .send({ email: email.toUpperCase(), password: PASSWORD, role: 'Student' });
+        await register({ email: email.toUpperCase(), password: PASSWORD, role: 'Student' });
 
-        const duplicate = await request(app).post('/auth/register')
-            .send({ email: email.toLowerCase(), password: PASSWORD, role: 'Student' });
+        const duplicate = await register({ email: email.toLowerCase(), password: PASSWORD, role: 'Student' });
 
         expect(duplicate.status).toBe(409);
     });
@@ -52,8 +66,44 @@ describe('POST /auth/register', () => {
         ['short password', { email: 'short@b.test', password: 'abc', role: 'Student' }],
         ['unknown role', { email: 'role@b.test', password: PASSWORD, role: 'Wizard' }],
     ])('rejects %s with 400', async (_label, body) => {
-        const res = await request(app).post('/auth/register').send(body);
+        const res = await register(body);
         expect(res.status).toBe(400);
+    });
+
+    // Registration used to be unauthenticated while still taking the role from
+    // the request body, so anyone who could reach the API could hand themselves
+    // a Supervisor account and rewrite the permission matrix.
+    it('refuses an anonymous caller with 401', async () => {
+        const res = await request(app)
+            .post('/auth/register')
+            .send({ email: uniqueEmail('anon'), password: PASSWORD, role: 'Supervisor' });
+
+        expect(res.status).toBe(401);
+    });
+
+    it('refuses a caller without users:write, even for a harmless role', async () => {
+        const student = await createUserAndLogin('Student');
+        const email = uniqueEmail('escalated');
+
+        const res = await register({ email, password: PASSWORD, role: 'Student' }, student.token);
+
+        expect(res.status).toBe(403);
+        expect(res.body.required).toBe('users:write');
+
+        const { rowCount } = await pool.query('SELECT 1 FROM users WHERE email = $1', [email]);
+        expect(rowCount).toBe(0);
+    });
+
+    it('does not let a non-admin create a Supervisor', async () => {
+        const student = await createUserAndLogin('Student');
+        const email = uniqueEmail('selfmade-supervisor');
+
+        const res = await register({ email, password: PASSWORD, role: 'Supervisor' }, student.token);
+
+        expect(res.status).toBe(403);
+
+        const { rowCount } = await pool.query('SELECT 1 FROM users WHERE email = $1', [email]);
+        expect(rowCount).toBe(0);
     });
 });
 

@@ -107,7 +107,8 @@ INSERT INTO permissions (code, description) VALUES
     ('ai:analyze',         'Upload a document for AI analysis'),
     ('rpc:execute',        'Trigger a RabbitMQ RPC round trip'),
     ('permissions:manage', 'View and edit the role/permission matrix'),
-    ('users:read',         'List users')
+    ('users:read',         'List users'),
+    ('users:write',        'Create user accounts')
 ON CONFLICT (code) DO NOTHING;
 
 -- Supervisor gets everything.

@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const request = require('supertest');
 const { createApp } = require('../../src/app');
 const { pool } = require('../../src/config/db');
@@ -18,12 +19,51 @@ function uniqueEmail(prefix = 'user') {
 
 const PASSWORD = 'TestPassword123';
 
+let bootstrapTokenPromise = null;
+
+/**
+ * A Supervisor token, for tests that need to call an admin-only route.
+ *
+ * The account is written straight into the table rather than through
+ * POST /auth/register, because that route now requires users:write — there is
+ * deliberately no way to create the first administrator through the API. This
+ * mirrors what scripts/setup-db.js does from SEED_ADMIN_*.
+ *
+ * Cached per module registry: Jest gives each test file its own, so this costs
+ * one bcrypt hash per file rather than one per call.
+ */
+function bootstrapSupervisorToken() {
+    if (!bootstrapTokenPromise) {
+        bootstrapTokenPromise = (async () => {
+            const email = uniqueEmail('bootstrap-supervisor');
+            const passwordHash = await bcrypt.hash(PASSWORD, 12);
+
+            const { rows } = await pool.query("SELECT id FROM roles WHERE name = 'Supervisor'");
+            await pool.query(
+                'INSERT INTO users (email, password_hash, role_id) VALUES ($1, $2, $3)',
+                [email, passwordHash, rows[0].id]
+            );
+
+            const loggedIn = await request(app).post('/auth/login').send({ email, password: PASSWORD });
+            if (loggedIn.status !== 200) {
+                throw new Error(
+                    `Could not log in the bootstrap Supervisor: ${loggedIn.status} ${loggedIn.text}`
+                );
+            }
+            return loggedIn.body.token;
+        })();
+    }
+    return bootstrapTokenPromise;
+}
+
 /** Registers a user in the given role and returns their token. */
 async function createUserAndLogin(role, password = PASSWORD) {
     const email = uniqueEmail(role.toLowerCase());
+    const adminToken = await bootstrapSupervisorToken();
 
     const registered = await request(app)
         .post('/auth/register')
+        .set({ Authorization: `Bearer ${adminToken}` })
         .send({ email, password, role });
 
     if (registered.status !== 201) {
@@ -77,6 +117,7 @@ module.exports = {
     request,
     uniqueEmail,
     createUserAndLogin,
+    bootstrapSupervisorToken,
     resetPermissions,
     getRoleId,
     auth,
