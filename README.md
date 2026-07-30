@@ -1,5 +1,7 @@
 # 🚀 AI-Integrated Microservice Management Panel
 
+**&#9654; [Try the interactive demo](https://ardazeybek-dev.github.io/microservice-management-panel/)** &#8212; sign in as each role and watch the authorization bite. Runs entirely in the browser on mock data; the real system needs Docker.
+
 [![CI](https://github.com/ardazeybek-dev/microservice-management-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/ardazeybek-dev/microservice-management-panel/actions/workflows/ci.yml)
 
 A full-stack demo system built around asynchronous service communication: RabbitMQ (async publish +
