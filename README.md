@@ -274,7 +274,9 @@ not committed to git. See `.env.example` and `frontend/.env.example` for sample 
 - `db/schema.sql` is the source of truth for the schema, trigger and procedure. `npm run setup-db`
   (`scripts/setup-db.js`) applies it and then seeds the first Supervisor from `SEED_ADMIN_*`. Every
   statement is idempotent, so re-running it never clobbers a Supervisor's runtime permission edits.
-- `db/seed.sql` is an older reference dump kept for illustration only.
+- `db/seed.sql` is the original schema from the first version of the project, kept for reference
+  only — do not run it. Its table names are still the Turkish ones used before the rename
+  (`genel_veriler` → `records`, `sistem_loglari` → `audit_logs`); the file header maps them all.
 
 ## 👥 Contributors
 
